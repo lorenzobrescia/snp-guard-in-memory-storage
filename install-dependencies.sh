@@ -127,7 +127,8 @@ start
 
 print_section "apt dependencies"
 sudo apt update && sudo apt install -y git curl wget make whois pv genisoimage \
-    qemu-utils pkg-config gcc libssl-dev cpio kmod fdisk rsync cryptsetup
+    qemu-utils pkg-config gcc libssl-dev cpio kmod fdisk rsync cryptsetup qemu \
+    qemu-kvm libvirt-clients libvirt-daemon-system virtinst bridge-utils jq
 
 print_section "Docker"
 if ! command -v docker &> /dev/null || [ $FORCE -eq 1 ]
@@ -170,7 +171,7 @@ fi
 
 if [[ $LIBSLIRP_DEV_VERS != 4.7.0* ]]; then
 	info "Installing libslirp-dev 4.7.0"
-       	wget -nv http://se.archive.ubuntu.com/ubuntu/pool/main/libs/libslirp/libslirp-dev_4.7.0-1ubuntu3_amd64.deb -O libslirp-dev.deb
+    wget -nv http://se.archive.ubuntu.com/ubuntu/pool/main/libs/libslirp/libslirp-dev_4.7.0-1ubuntu3_amd64.deb -O libslirp-dev.deb
 	sudo dpkg -i libslirp-dev.deb
 	rm -rf libslirp-dev.deb
 else

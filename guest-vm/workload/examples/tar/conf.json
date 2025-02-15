@@ -1,0 +1,13 @@
+{
+  "container_name": "tar-hollywood",
+  "local_result_folder": "/home/ubuntu/tar_results",
+  "inputs": [
+    "/home/ubuntu/input/Hollywood2_10G:/app/to_compress"
+  ],
+  "outputs_file": [
+  ],
+  "outputs_dir": [
+    "/app/res.tar.gz",
+    "/app/time.txt"
+  ]
+}

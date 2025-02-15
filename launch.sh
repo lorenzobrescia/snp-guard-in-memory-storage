@@ -5,12 +5,13 @@
 #
 HDA=""
 HDB=""
-MEM="2048"
-SMP="1"
+MEM="32768"
+SMP="32"
 CONSOLE="serial"
+DAEMONIZE="0"
 USE_VIRTIO="1"
 DISCARD="none"
-USE_DEFAULT_NETWORK="1"
+IP="192.168.122.100"
 CPU_MODEL="EPYC-v4"
 MONITOR_PATH=monitor
 QEMU_CONSOLE_LOG=`pwd`/stdout.log
@@ -23,6 +24,7 @@ SEV="0"
 SEV_ES="0"
 SEV_SNP="0"
 USE_GDB="0"
+KERNEL_HASHES="0"
 
 SEV_TOOLCHAIN_PATH="build/snp-release/usr/local"
 UEFI_PATH="$SEV_TOOLCHAIN_PATH/share/qemu/"
@@ -45,10 +47,13 @@ usage() {
 	echo "                    You can also specify additional CPU flags, e.g. -cpu $CPU_MODEL,+avx512f,+avx512dq"
 	echo " -kernel PATH       kernel to use"
 	echo " -initrd PATH       initrd to use"
+	echo " -kernel-hashes     verify kernel hashes"
 	echo " -append ARGS       kernel command line arguments to use"
 	echo " -cdrom PATH        CDROM image"
 	echo " -default-network   enable default usermode networking"
 	echo "                    (Requires that QEMU is built on a host that supports libslirp-dev 4.7 or newer)"
+	echo " -ip IP             specify ip address in range 192.168.122.100 - 192.168.122.109 to use bridged network"
+	echo " -daemonize         enable background execution of the VM"
 	echo " -monitor PATH      Path to QEMU monitor socket (default: $MONITOR_PATH)"
 	echo " -log PATH          Path to QEMU console log (default: $QEMU_CONSOLE_LOG)"
 	echo " -certs PATH        Path to SNP certificate blob for guest (default: none)"
@@ -157,6 +162,9 @@ while [ -n "$1" ]; do
 		-initrd)	INITRD_FILE=$2
 				shift
 				;;
+		-kernel-hashes)
+				KERNEL_HASHES="1"
+				;;
 		-append)	APPEND=$2
 				shift
 				;;
@@ -165,6 +173,12 @@ while [ -n "$1" ]; do
 				;;
 		-default-network)
 				USE_DEFAULT_NETWORK="1"
+				;;
+		-ip)		IP="$2"
+				shift
+				;;
+		-daemonize)
+				DAEMONIZE="1"
 				;;
 		-monitor)       MONITOR_PATH="$2"
 				shift
@@ -356,6 +370,17 @@ if [ "$USE_DEFAULT_NETWORK" = "1" ]; then
 		add_opts " -netdev user,id=vmnic,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:8080-:80"
 #    add_opts "-netdev user,id=vmnic"
     add_opts " -device virtio-net-pci,disable-legacy=on,iommu_platform=true,netdev=vmnic,romfile="
+else
+	add_opts "-netdev bridge,id=vmnic1,br=virbr0" 
+	last_octet=${IP##*.}
+	if [[ $last_octet -ge 100 && $last_octet -le 109 ]]; then
+    	hex_offset=$(printf "%02X" $(( $last_octet - 100 + 0x56 )))
+    	mac="52:54:00:12:34:$hex_offset"
+		add_opts "-device virtio-net-pci,disable-legacy=on,iommu_platform=true,netdev=vmnic1,romfile=,mac=$mac"
+	else
+    	echo "Invalid IP: $IP. Must be between 192.168.122.100 and 192.168.122.109."
+    	usage
+	fi
 fi
 
 DISKS=( "$HDA" "$HDB" )
@@ -416,7 +441,7 @@ if [ ${SEV} = "1" ]; then
 			SNP_OPTS_BUILDER+=",host-data=$(cat $HOST_DATA_FILE)"
 		fi
 
-		if [ ${KERNEL_FILE} ] && [ ${INITRD_FILE} ]; then
+		if [ ${KERNEL_FILE} ] && [ ${INITRD_FILE} ] && [ "${KERNEL_HASHES}" = 1 ]; then
 			SNP_OPTS_BUILDER+=",kernel-hashes=on"
 		fi
 
@@ -435,17 +460,21 @@ if [ "${KERNEL_FILE}" != "" ]; then
 	[ -n "${INITRD_FILE}" ] && add_opts "-initrd ${INITRD_FILE}"
 fi
 
-# if console is serial then disable graphical interface
-if [ "${CONSOLE}" = "serial" ]; then
-	add_opts "-nographic"
-else
-	add_opts "-vga ${CONSOLE}"
+# disable graphical interface
+add_opts "-vga none"
+
+if [ "${DAEMONIZE}" = "0" ]; then
+	if [ "${CONSOLE}" = "serial" ]; then
+		add_opts "-nographic"
+	fi
+else	
+	add_opts "-daemonize"
 fi
 
 # start monitor on pty and named socket 'monitor'
-add_opts "-monitor pty -monitor unix:${MONITOR_PATH},server,nowait"
+# add_opts "-monitor pty -monitor unix:${MONITOR_PATH},server,nowait"
 
-add_opts "-qmp tcp:localhost:4444,server,wait=off"
+# add_opts "-qmp tcp:localhost:4444,server,wait=off"
 
 # save the command line args into log file
 cat $QEMU_CMDLINE | tee ${QEMU_CONSOLE_LOG}

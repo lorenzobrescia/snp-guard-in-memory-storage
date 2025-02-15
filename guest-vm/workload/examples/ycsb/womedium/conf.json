@@ -1,0 +1,14 @@
+{
+  "container_name": "ycsb",
+  "local_result_folder": "/home/ubuntu/ycsb_results",
+  "inputs": [
+    "/home/ubuntu/input/query_medium:/app/db"
+  ],
+  "outputs_file": [
+  ],
+  "outputs": [
+    "@@/app/db/",
+    "/app/time.txt",
+    "/app/log.txt"
+  ]
+}

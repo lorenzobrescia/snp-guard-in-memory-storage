@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -e
-
 TMP_FILE=$(mktemp)
 echo $HOSTS_FILE
 
@@ -17,6 +15,11 @@ USER=ubuntu
 IN_REPORT=/etc/report.json
 OUT_REPORT=build/verity/attestation_report.json
 
+MAX_RETRIES=12  # 12 retries (every 5 seconds for 1 minute)
+RETRY_INTERVAL=5
+COUNT=0
+DELAY=0
+
 usage() {
   echo "$0 [options]"
   echo " -vm-config <path>                      path to VM config file [Mandatory]"
@@ -24,6 +27,7 @@ usage() {
   echo " -port <int>                            SSH port of the VM (default: $PORT)"
   echo " -user <string>                         VM user to login to (default: $USER)"
   echo " -out <path>                            Path to output attestation report (default: $OUT_REPORT)"
+  echo " -delay <string>                        Seconds to wait before starting the attestation"
   exit
 }
 
@@ -44,6 +48,9 @@ while [ -n "$1" ]; do
 		-out) OUT_REPORT="$2"
 			shift
 			;;
+		-delay) DELAY="$2"
+			shift
+			;;
 		*) 		usage
 				;;
 	esac
@@ -59,12 +66,24 @@ fi
 # clean up known_hosts file before running the script
 rm -rf $SSH_HOSTS_FILE
 
+if [ $DELAY -gt 0 ]; then
+	echo "Waiting $DELAY seconds before to start the attestation.."
+	sleep $DELAY
+fi
+
 echo "Fetching attestation report via SCP.."
-scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=$SSH_HOSTS_FILE -P $PORT $USER@$HOST:$IN_REPORT $OUT_REPORT || {
-    echo "Failed to connect to VM"
-	rm -rf $SSH_HOSTS_FILE
-    exit 1
-}
+while (( COUNT < MAX_RETRIES )); do
+    scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=$SSH_HOSTS_FILE -P $PORT $USER@$HOST:$IN_REPORT $OUT_REPORT && break
+    echo "Failed to connect to VM, retrying in $RETRY_INTERVAL seconds..."
+    ((COUNT++))
+    sleep $RETRY_INTERVAL
+done
+
+if (( COUNT == MAX_RETRIES )); then
+	echo "Failed to fetch attestation report after $COUNT attempts."
+	rm -rf "$SSH_HOSTS_FILE"
+	exit 1
+fi
 
 echo "Verifying attestation report.."
 FINGERPRINT=$(ssh-keygen -lf $SSH_HOSTS_FILE | awk '{ print $2 }' | cut -d ":" -f 2)

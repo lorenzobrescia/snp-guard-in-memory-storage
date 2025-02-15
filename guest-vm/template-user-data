@@ -39,3 +39,7 @@ write_files:
   - path: /etc/ssh/sshd_config.d/only_use_ecdsa.conf
     content: |
       HostKey /etc/ssh/ssh_host_ecdsa_key
+  - path: /etc/hosts
+    content: |
+      127.0.0.1 localhost sevsnpvm
+      127.0.1.1 sevsnpvm.localdomain sevsnpvm

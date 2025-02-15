@@ -30,6 +30,10 @@ MNT_DIR=/root
 # Command-line parameters
 ROOT=/dev/sda
 BOOT=normal
+HOME_SIZE=8192M
+VAR_SIZE=2048M
+ETC_SIZE=512M
+TMP_SIZE=512M
 
 # Parse command line options
 # shellcheck disable=SC2013
@@ -46,6 +50,18 @@ for x in $(cat /proc/cmdline); do
 		;;
 	verity_roothash=*)
 		VERITY_ROOT_HASH=${x#verity_roothash=}
+		;;
+  home_size=*)
+		HOME_SIZE=${x#home_size=}
+		;;
+  etc_size=*)
+		ETC_SIZE=${x#etc_size=}
+		;;
+  var_size=*)
+		VAR_SIZE=${x#var_size=}
+		;;
+  tmp_size=*)
+		TMP_SIZE=${x#tmp_size=}
 		;;
 	esac
 done
@@ -99,10 +115,10 @@ boot_verity() {
     mount -o ro,noload /dev/mapper/root $MNT_DIR
 
     # create RAM filesystems (protected by SEV-SNP)
-    mount -t tmpfs -o size=8192M tmpfs $MNT_DIR/home
-    mount -t tmpfs -o size=1024M tmpfs $MNT_DIR/etc
-    mount -t tmpfs -o size=2048M tmpfs $MNT_DIR/var
-    mount -t tmpfs -o size=1024M tmpfs $MNT_DIR/tmp
+    mount -t tmpfs -o size=$HOME_SIZE tmpfs $MNT_DIR/home
+    mount -t tmpfs -o size=$ETC_SIZE tmpfs $MNT_DIR/etc
+    mount -t tmpfs -o size=$VAR_SIZE tmpfs $MNT_DIR/var
+    mount -t tmpfs -o size=$TMP_SIZE tmpfs $MNT_DIR/tmp
 
     # copy home, etc, var contents to RAM fs
     rsync -paxHAWXS $MNT_DIR/home_ro/ $MNT_DIR/home/
