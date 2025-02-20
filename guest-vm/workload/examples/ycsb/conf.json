@@ -6,7 +6,6 @@
   ],
   "outputs": [
     "/home/ubuntu/input/query_medium:/app/db",
-    "/app/time.txt",
     "/app/log.txt"
   ]
 }
