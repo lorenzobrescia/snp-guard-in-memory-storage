@@ -597,7 +597,7 @@ The setup of this workflow is the same of [previous](#Run-integrity-only-workflo
 make setup_verity
 ```
 To run the Docker workload it is necessary to define the Dockerfile and a configuration file. The configuration file is a JSON with this structure:
-```json
+```
 {
   "container_name": "name of the built container",
   "local_result_folder": "path host-side to store results",
@@ -609,7 +609,7 @@ To run the Docker workload it is necessary to define the Dockerfile and a config
     "docker container folder/",
     "docker container file",
     # if an input is also an output just copy and paste the input line
-    "host path input:docker container folder""
+    "host path input:docker container folder"
   ]
 }
 ```
