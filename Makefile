@@ -63,8 +63,6 @@ VM_CONF_TEMPLATE   = $(GUEST_DIR)/vm-config-template.toml
 VM_CONFIG_FILE     = $(GUEST_DIR)/vm-config.toml
 VM_CONFIG_PARAMS   = -ovmf $(OVMF_PATH) -kernel $(KERNEL_PATH) -initrd $(INITRD_PATH) -template $(VM_CONF_TEMPLATE) -cpus $(CPUS) -policy $(POLICY)
 
-# DOCKER_PATH        = $(shell realpath ./guest-vm/workload/examples/tar/Dockerfile)
-# CONF_PATH          = $(shell realpath ./guest-vm/workload/examples/tar/conf.json)
 DOCKER_PATH        = $(shell realpath ./guest-vm/workload/Dockerfile)
 CONF_PATH          = $(shell realpath ./guest-vm/workload/conf.json)
 
@@ -90,7 +88,7 @@ run_verity_workflow:
 run_verity_docker_workload:
 	./guest-vm/create-vm-config.sh $(VM_CONFIG_PARAMS) -cmdline "$(KERNEL_CMDLINE) $(VERITY_PARAMS)" -out $(VM_CONFIG_FILE)
 	sudo -E $(QEMU_LAUNCH_SCRIPT) $(QEMU_DEF_PARAMS) $(QEMU_NET_IP_PARAMS) $(QEMU_SNP_PARAMS) $(QEMU_BACKGROUND) $(QEMU_KERNEL_HASHES) -hda $(VERITY_IMAGE) -hdb $(VERITY_HASH_TREE) -load-config $(VM_CONFIG_FILE)
-	./attestation/attest-verity.sh -vm-config $(VM_CONFIG_FILE) -host $(SSH_KEY_NAME) -port $(VM_PORT) -user $(VM_USER) -delay 17 || exit 1
+	./attestation/attest-verity.sh -vm-config $(VM_CONFIG_FILE) -host $(SSH_KEY_NAME) -port $(VM_PORT) -user $(VM_USER) -delay 20 || exit 1
 	./guest-vm/workload/run.sh -host $(SSH_KEY_NAME) -port $(VM_PORT) -user $(VM_USER) -docker $(DOCKER_PATH) -config $(CONF_PATH) 
 
 run_luks_workflow:

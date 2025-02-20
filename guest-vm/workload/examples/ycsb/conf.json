@@ -4,8 +4,6 @@
   "inputs": [
     "/home/ubuntu/input/query_medium:/app/db"
   ],
-  "outputs_file": [
-  ],
   "outputs": [
     "/home/ubuntu/input/query_medium:/app/db",
     "/app/time.txt",

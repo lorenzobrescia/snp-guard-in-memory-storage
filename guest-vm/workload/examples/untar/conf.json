@@ -4,9 +4,7 @@
   "inputs": [
     "/home/ubuntu/input/Hollywood2_10G.tar.gz:/app/to_decompress"
   ],
-  "outputs_file": [
-  ],
-  "outputs_dir": [
+  "outputs": [
     "/app/res/",
     "/app/time.txt"
   ]

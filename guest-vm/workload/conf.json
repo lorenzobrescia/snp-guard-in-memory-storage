@@ -1,13 +1,11 @@
 {
-  "container_name": "ycsb",
-  "local_result_folder": "/home/ubuntu/ycsb_results",
+  "container_name": "hello",
+  "local_result_folder": "/home/ubuntu/hello-results/",
   "inputs": [
-    "/home/ubuntu/input/query_small:/app/db"
+    "/home/ubuntu/input/name.txt:/app/name.txt"
   ],
   "outputs": [
-    "/home/ubuntu/input/query_small:/app/db",
-    "/app/time.txt",
-    "/app/log.txt"
+    "/app/hello.txt"
   ]
 }
 
