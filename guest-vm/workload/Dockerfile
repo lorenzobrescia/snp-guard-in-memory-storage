@@ -158,4 +158,4 @@ RUN mkdir -p /app/db
 WORKDIR /app/YCSB
 
 # run the DB workload
-CMD ["sh", "-c", "start=$(date +%s%N); ./bin/ycsb run rocksdb -P workloads/mediumA -p rocksdb.dir=/app/db > ../log.txt; end=$(date +%s%N); echo $(( (end - start) / 1000000 )) ms > ../time.txt"]
+CMD ["sh", "-c", "start=$(date +%s%N); ./bin/ycsb run rocksdb -P workloads/rosmall -p rocksdb.dir=/app/db > ../log.txt; end=$(date +%s%N); echo $(( (end - start) / 1000000 )) ms > ../time.txt"]

@@ -16,6 +16,11 @@ starts_with_atat() {
   [[ "$str" == @@* ]]
 }
 
+contains_colon() {
+  local str="$1"
+  [[ "$str" == *:* ]]
+}
+
 ends_with_slash() {
   local str="$1"
   [[ "$str" == */ ]]
@@ -96,7 +101,7 @@ done
 # Preparing output files to be mounted right in Docker
 for output in ${outputs[@]}; do
     dirname=$(dirname "$output")
-    if ! starts_with_atat "$output"; then
+    if ! contains_colon "$output"; then
       if ends_with_slash "$output"; then
         echo "Creating folder $output in the VM.."
         ssh $USER@$HOST "mkdir -p /home/$USER/workload_results$output"
@@ -117,40 +122,3 @@ ssh $USER@$HOST "docker build -t $container_name ."
 echo "Executing docker container ($container_name) in the VM.."
 echo "Command: docker run -itd $docker_volumes --name workload $container_name"
 ssh $USER@$HOST "docker run -itd $docker_volumes --name workload $container_name"
-
-# docker run -itd -v /home/ubuntu/workload_data/small/:/app/small   -v /home/ubuntu/workload_results/holly.tar.gz:/app/holly.tar.gz -v /home/ubuntu/workload_results/x:/app/x  my-tar-image
-
-# mapfile -t outputs  < <(jq -r '.outputs_file[]' "$CONFIG_FILE")
-
-# Print the associative array
-# for key in "${!inputs_map[@]}"; do
-#   echo "Key: $key, Value: ${inputs_map[$key]}"
-# done
-
-# mapfile -t inputs  < <(jq -r '.inputs[]' "$CONFIG_FILE")
-# mapfile -t outputs  < <(jq -r '.outputs_file[]' "$CONFIG_FILE")
-
-# Prepare output files
-# If output are files and them don't exist docker will mount as folder
-# For this reason it is necessary to create them before the computation starts
-# for key in "${!outputs_file_map[@]}"; do
-#   echo "Creating file $key in the VM.."
-#   ssh $USER@$HOST "touch /home/$USER/workload_results/$key"
-#   docker_volumes+="-v /home/$USER/workload_results/$key:${outputs_file_map[$key]} "
-# done
-
-# for key in "${!outputs_dir_map[@]}"; do
-#   docker_volumes+="-v /home/$USER/workload_results/$key:${outputs_dir_map[$key]} "
-# done
-
-# -v /home/ubuntu/workload_data/small:/app/to_compress -v /home/ubuntu/workload_results/:/app/res -v /home/ubuntu/workload_results//app/a: -v /home/ubuntu/workload_results//app/results: -v /home/ubuntu/workload_results//app/b/c:
-
-# declare -A outputs_file_map
-# declare -A outputs_dir_map
-# while IFS=":" read -r key value; do
-#   outputs_file_map["$key"]="$value"
-# done < <(jq -r '.outputs_file[]' "$CONFIG_FILE")
-
-# while IFS=":" read -r key value; do
-#   outputs_dir_map["$key"]="$value"
-# done < <(jq -r '.outputs_dir[]' "$CONFIG_FILE")

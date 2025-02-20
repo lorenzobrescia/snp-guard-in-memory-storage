@@ -2,10 +2,10 @@
   "container_name": "ycsb",
   "local_result_folder": "/home/ubuntu/ycsb_results",
   "inputs": [
-    "/home/ubuntu/input/query_medium:/app/db"
+    "/home/ubuntu/input/query_small:/app/db"
   ],
   "outputs": [
-    "@@/app/db/",
+    "/home/ubuntu/input/query_small:/app/db",
     "/app/time.txt",
     "/app/log.txt"
   ]

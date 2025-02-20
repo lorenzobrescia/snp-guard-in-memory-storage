@@ -10,9 +10,15 @@ SCRIPT_DIR=$(dirname $0)
 SSH_HOSTS_FILE=$(realpath $SCRIPT_DIR/../../build/known_hosts)
 CONFIG_FILE=$(realpath $SCRIPT_DIR/conf.json)
 
-starts_with_atat() {
+
+contains_colon() {
   local str="$1"
-  [[ "$str" == @@* ]]
+  [[ "$str" == *:* ]]
+}
+
+extract_dir() {
+  before_colon=$(echo "$str" | awk -F':' '{print $1}') # Get directory path before ':'
+  echo "$(basename "$before_colon")"  # Extract last directory name
 }
 
 usage() {
@@ -65,13 +71,13 @@ fi
 # Perform the copy
 scp -o StrictHostKeyChecking=no -o UserKnownHostsFile="$SSH_HOSTS_FILE" -P "$PORT" -r "$USER@$HOST:/home/$USER/workload_results/*" "$local_result_folder"
 
-# TODO Copy also all the user outputs that were inputs
-# mapfile -t outputs  < <(jq -r '.outputs[]' "$CONFIG_FILE")
-# for output in ${outputs[@]}; do
-#     dirname=$(dirname "$output")
-#     if starts_with_atat "$output"; then
-#       scp -o StrictHostKeyChecking=no -o UserKnownHostsFile="$SSH_HOSTS_FILE" -P "$PORT" -r "$USER@$HOST:/home/$USER/workload_results/*" "$local_result_folder"
-#     fi
-# done
+# Copy also all the user outputs that were inputs
+mapfile -t outputs  < <(jq -r '.outputs[]' "$CONFIG_FILE")
+for output in ${outputs[@]}; do
+    if contains_colon "$output"; then
+      dir=$(extract_dir "$output")
+      scp -o StrictHostKeyChecking=no -o UserKnownHostsFile="$SSH_HOSTS_FILE" -P "$PORT" -r "$USER@$HOST:/home/$USER/workload_data/$dir" "$local_result_folder"
+    fi
+done
 
 echo "Copy operation completed."

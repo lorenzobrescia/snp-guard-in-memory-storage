@@ -7,7 +7,7 @@
   "outputs_file": [
   ],
   "outputs": [
-    "@@/app/db/",
+    "/home/ubuntu/input/query_medium:/app/db",
     "/app/time.txt",
     "/app/log.txt"
   ]

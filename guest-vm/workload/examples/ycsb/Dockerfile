@@ -22,12 +22,11 @@ fieldcount=10\n\
 fieldlength=100\n\
 workload=site.ycsb.workloads.CoreWorkload\n\
 readallfields=true\n\
-writeallfields=true\n\
-readproportion=0\n\
+readproportion=1\n\
+updateproportion=0\n\
 scanproportion=0\n\
-updateproportion=0.8\n\
-insertproportion=0.2\n\
-requestdistribution=zipfian" > /app/YCSB/workloads/womedium
+insertproportion=0\n\
+requestdistribution=zipfian" > /app/YCSB/workloads/romedium
 
 # Create the database directory
 RUN mkdir -p /app/db
@@ -35,4 +34,4 @@ RUN mkdir -p /app/db
 WORKDIR /app/YCSB
 
 # run the DB workload
-CMD ["sh", "-c", "start=$(date +%s%N); ./bin/ycsb run rocksdb -P workloads/womedium -p rocksdb.dir=/app/db > ../log.txt; end=$(date +%s%N); echo $(( (end - start) / 1000000 )) ms > ../time.txt"]
+CMD ["sh", "-c", "./bin/ycsb run rocksdb -P workloads/romedium -p rocksdb.dir=/app/db > ../log.txt;"]
