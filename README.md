@@ -273,6 +273,47 @@ sudo dmesg | grep -i -e rmp -e sev
 # kvm_amd: SEV-SNP enabled (ASIDs 1 - 509)
 ```
 
+### Step 5: configure bridge network (optional)
+Allow virtual bridge
+```bash
+mkdir -p build/snp-release/usr/local/etc/qemu/
+echo "allow virbr0" > build/snp-release/usr/local/etc/qemu/bridge.conf
+sudo virsh net-destroy default
+sudo virsh net-undefine default
+```
+
+Create a file default.xml with this content:
+```
+<network>
+  <name>default</name>
+  <uuid>681b21fe-f406-48f7-a042-3f762798ba20</uuid>
+  <forward mode='nat'/>
+  <bridge name='virbr0' stp='on' delay='0'/>
+  <mac address='52:54:00:52:6c:51'/>
+  <ip address='192.168.122.1' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='192.168.122.2' end='192.168.122.254'/> 
+      <host mac='52:54:00:12:34:56' ip='192.168.122.100'/>
+      <host mac='52:54:00:12:34:57' ip='192.168.122.101'/> 
+      <host mac='52:54:00:12:34:58' ip='192.168.122.102'/>
+      <host mac='52:54:00:12:34:59' ip='192.168.122.103'/>
+      <host mac='52:54:00:12:34:5a' ip='192.168.122.104'/>
+      <host mac='52:54:00:12:34:5b' ip='192.168.122.105'/>
+      <host mac='52:54:00:12:34:5c' ip='192.168.122.106'/>
+      <host mac='52:54:00:12:34:5d' ip='192.168.122.107'/>
+      <host mac='52:54:00:12:34:5e' ip='192.168.122.108'/>
+      <host mac='52:54:00:12:34:5f' ip='192.168.122.109'/>
+    </dhcp>
+  </ip>
+</network>
+```
+
+Start the virtual network
+```bash
+sudo virsh net-define default.xml
+sudo virsh net-start default
+```
+
 ## Prepare guest
 
 ### Step 0: Unpack kernel
@@ -329,6 +370,8 @@ make run_setup
 # (From another shell) Copy kernel and headers to the guest VM via SCP
 # note: if the guest does not have an IP address check below instructions
 scp -P 2222 build/snp-release/linux/guest/*.deb <username>@localhost:
+# copy also a config.sh script file that will setup the VM
+scp -P 2222 guest-vm/config.sh ubuntu@localhost:
 ```
 
 Continue with [checking the guest configuration](#guest-configuration) from within in the guest.
@@ -362,22 +405,15 @@ Continue with [checking the guest configuration](#guest-configuration) from with
 
 From inside the guest:
 ```bash
-# install kernel and headers (copied before)
-# This is needed even when running direct boot, as we still need access to the kernel module files
-sudo dpkg -i linux-*.deb
-
-# remove kernel and headers to save space
-rm -rf linux-*.deb
-
-# disable multipath service (causes some conflicts)
-sudo systemctl disable multipathd.service
-
-# If you have not created the VM using our script, you need to 
-# disable EFI and swap partitions in /etc/fstab
-sudo mv /etc/fstab /etc/fstab.bak
-
-# Shut down VM
+chmod +x config.sh
+# Install Docker, the kernel and setup network for a bridged configuration
+sudo ./config.sh
 sudo shutdown now
+```
+
+From the host side save the generated ssh keys in ~/.ssh:
+```bash
+make save_ssh_keys
 ```
 
 ### Step 3: Prepare template for attestation
@@ -552,6 +588,51 @@ Both commands above accept the following parameters:
 **Note**: attestation may fail if the host CPU family, minimum TCB and platform
 info are not the expected ones, as explained
 [above](#step-3-prepare-template-for-attestation).
+
+## Run integrity-only workflow launching a Docker workload
+The setup of this workflow is the same of [previous](#Run-integrity-only-workflow) workflow:
+```bash
+# create verity image. Pass IMAGE=<path> to change source image to use.
+# By default, the image created with `make create_new_vm` is used
+make setup_verity
+```
+To run the Docker workload it is necessary to define the Dockerfile and a configuration file. The configuration file is a JSON with this structure:
+```json
+{
+  "container_name": "name of the built container",
+  "local_result_folder": "path host-side to store results",
+  "inputs": [
+    "host path input:docker container folder",
+    ...
+  ],
+  "outputs": [
+    "docker container folder/",
+    "docker container file",
+    # if an input is also an output just copy and paste the input line
+    "host path input:docker container folder""
+  ]
+}
+```
+In the Makefile  it is possible to define where to find the Dockerfile and the json configuration file:
+```bash
+DOCKER_PATH = $(shell realpath ./guest-vm/workload/Dockerfile)
+CONF_PATH = $(shell realpath ./guest-vm/workload/conf.json)
+```
+
+In the Makefile it is also possible to define the size of tmpfs mounted folders inside the VM, in this way it is not more necessary to recompile the initramfs at each change:
+```bash
+VERITY_PARAMS ?= boot=verity verity_disk=/dev/sdb verity_roothash=`cat $(VERITY_ROOT_HASH)` home_size=25600M var_size=2048M etc_size=1024M tmp_size=1024M
+```
+
+At this point, to run the docker workload:
+```bash
+make run_verity_docker_workload
+```
+
+And to collect the results
+```bash
+make collect_docker_workload_results
+```
 
 ## Run encrypted workflow
 
