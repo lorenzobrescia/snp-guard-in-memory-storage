@@ -634,6 +634,166 @@ And to collect the results
 make collect_docker_workload_results
 ```
 
+### Example: hello name
+In the host there is a file `name.txt` that contain a name. In this toy example we want to run a Docker workload that take the name and create another file with "Hello Name". The first thing to do is to map the input file `name.txt` inside the Docker container. As it is possible to see, host side the file is located in `/home/ubuntu/input/name.txt` while in the container will be located in `/app/name.txt`. The output will be in `/app/hello.txt` and once finished the execution inside the VM, it will be saved on `/home/ubuntu/hello-results/` folder.
+```json
+{
+  "container_name": "hello",
+  "local_result_folder": "/home/ubuntu/hello-results/",
+  "inputs": [
+    "/home/ubuntu/input/name.txt:/app/name.txt"
+  ],
+  "outputs": [
+    "/app/hello.txt"
+  ]
+}
+```
+
+The Dockerfile just use hello.txt and name.txt as available in the container
+```
+# Use a minimal base image
+FROM alpine:latest
+
+# Set the working directory
+WORKDIR /app
+
+# Command to write "Hello, World!" to a file when the container starts
+CMD echo "Hello $(cat name.txt)" > /app/hello.txt
+```
+
+### Example: tar
+In this example we want to compress an open [dataset](https://www.di.ens.fr/~laptev/actions/hollywood2/) containing video clips of human actions. First we select around 10 GB of the dataset with this bash script:
+```bash
+mkdir Hollywood2_10G
+total_size=0
+target_size=$((10 * 1024 * 1024 * 1024))
+
+for file in Hollywood2/AVIClips/*.avi; do
+    file_size=$(stat -c%s "$file")
+    if [[ $((total_size + file_size)) -le $target_size ]]; then
+        cp "$file" Hollywood2_10G/
+        total_size=$((total_size + file_size))
+    else
+        break
+    fi
+done
+```
+Then we define this configuration file:
+```json
+{
+  "container_name": "tar-hollywood",
+  "local_result_folder": "/home/ubuntu/tar_results",
+  "inputs": [
+    "/home/ubuntu/input/Hollywood2_10G:/app/to_compress"
+  ],
+  "outputs": [
+    "/app/res.tar.gz",
+    "/app/time.txt"
+  ]
+}
+```
+And this Dockerfile:
+```
+# Use the official Ubuntu Jammy base image
+FROM ubuntu:jammy
+
+# Set the working directory
+WORKDIR /app
+
+# Install tar (in case it's not already installed)
+RUN apt-get update && apt-get install -y tar
+
+# Extract the holly.tar.gz archive
+CMD ["sh", "-c", "start=$(date +%s%N); tar -czf res.tar.gz to_compress; end=$(date +%s%N); echo $(( (end - start) / 1000000 )) ms > time.txt"]
+```
+
+Again it is possible to note that the input folder `to_compress` is handled in a transparent way for Docker point of view.
+
+### Example: YCSB with RocksDB
+In this Docker workload we want to simulate a database computation using [YCSB](https://github.com/brianfrankcooper/YCSB/). Before run the Docker workload we have to create the database that will be the input. In order to do that you have to download and install YCSB:
+```
+git clone https://github.com/brianfrankcooper/YCSB.git
+cd YCSB
+mvn -pl site.ycsb:rocksdb-binding -am clean package
+```
+
+Then it is necessary to define a database and workload structure. Suppose we want a database of 5.5 GB and a readonly workload, then we have to compile a `workloads/readonly` file like this:
+```
+recordcount=5000000
+operationcount=5000000
+fieldcount=10
+fieldlength=100
+workload=site.ycsb.workloads.CoreWorkload
+readallfields=true
+readproportion=1
+updateproportion=0
+scanproportion=0
+insertproportion=0
+requestdistribution=zipfian"
+```
+
+Finally, to create a database just run:
+```
+./bin/ycsb load rocksdb -P workloads/readonly -p rocksdb.dir=/home/ubuntu/input/db/
+```
+
+Once we have the databse, we have to compile the configuration file:
+```json
+{
+  "container_name": "ycsb",
+  "local_result_folder": "/home/ubuntu/ycsb_results",
+  "inputs": [
+    "/home/ubuntu/input/db:/app/db"
+  ],
+  "outputs": [
+    "/home/ubuntu/input/db:/app/db",
+    "/app/log.txt"
+  ]
+}
+```
+Note that when the output of the workload is the same as the input you have just to copy and paste the input record. Note also that in this case, where the workload is just read-only, is useless to save the output.
+
+The Dockerfile is:
+```
+FROM ubuntu:jammy
+
+# Install dependencies
+RUN apt-get update && \
+    apt-get install -y maven git librocksdb-dev python3 && \
+    ln -s /usr/bin/python3 /usr/bin/python && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Clone YCSB repository and build the RocksDB binding
+RUN git clone https://github.com/brianfrankcooper/YCSB.git && \
+    cd YCSB && \
+    mvn -pl site.ycsb:rocksdb-binding -am clean package
+
+# Define the workload
+RUN echo "\
+recordcount=5000000\n\
+operationcount=5000000\n\
+fieldcount=10\n\
+fieldlength=100\n\
+workload=site.ycsb.workloads.CoreWorkload\n\
+readallfields=true\n\
+readproportion=1\n\
+updateproportion=0\n\
+scanproportion=0\n\
+insertproportion=0\n\
+requestdistribution=zipfian" > /app/YCSB/workloads/readonly
+
+# Create the database directory
+RUN mkdir -p /app/db
+
+WORKDIR /app/YCSB
+
+# run the DB workload
+CMD ["sh", "-c", "./bin/ycsb run rocksdb -P workloads/readonly -p rocksdb.dir=/app/db > ../log.txt;"]
+```
+
 ## Run encrypted workflow
 
 ### Step 1: Prepare dm-crypt
