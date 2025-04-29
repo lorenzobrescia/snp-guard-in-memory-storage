@@ -1,3 +1,11 @@
+# End-to-End Confidentiality with SEV-SNP Leveraging In-Memory Storage
+
+Confidential computing ensures data in-use protection in untrusted cloud environments, yet securing data at-rest typically relies on Full Disk Encryption (FDE), which imposes significant performance overhead. This work proposes an alternative in-memory storage approach that eliminates FDE by leveraging SEV-SNP confidential virtual machines (CVMs). Our framework extends [SNP-Guard](#snpguard), an open-source platform for booting and attesting SEV-SNP VMs, to manage workload execution using temporary file systems (tmpfs), inherently secured by CVM memory encryption.
+
+SNPGuard allows a SEV-SNP VM to be launched and attested. The extended version on this repository also allows launching a workload expressed in terms of a Dockerfile, achieving end-to-end confidentiality in a transparent way for the user.
+
+To be able to perform this, it is necessary to prepare the machine following the same workflow as SNPGuard. Then you need to create a configuration file and the Dockerfile. [This](#run-integrity-only-workflow-launching-a-docker-workload) is the section related to the execution of this kind of workflow.
+
 # SNPGuard
 
 This repository demonstrates an end-to-end secured setup for a SEV-SNP VM. To
@@ -37,8 +45,10 @@ The workflow consists of five different stages:
 2. [Build packages](#build-packages)
 3. [Prepare host](#prepare-host)
 4. [Prepare guest](#prepare-guest)
-5. Run: [integrity](#run-integrity-only-workflow) and
-   [encrypted](#run-encrypted-workflow) workflows
+5. Run one of the following workflows: 
+    - [integrity](#run-integrity-only-workflow)
+    - [automated integrity + Docker execution](#run-integrity-only-workflow-launching-a-docker-workload)
+    - [encrypted](#run-encrypted-workflow)
 
 Stages 1 to 3 are supposed to be done only once, unless you wish to install
 updated versions of the SNP tools and packages.
@@ -273,8 +283,11 @@ sudo dmesg | grep -i -e rmp -e sev
 # kvm_amd: SEV-SNP enabled (ASIDs 1 - 509)
 ```
 
-### Step 5: configure bridge network (optional)
-Allow virtual bridge
+### Step 5: configure bridge network
+
+This step is necessary to use VM with an IP address instead of `localhost`.
+
+Allow virtual bridge:
 ```bash
 mkdir -p build/snp-release/usr/local/etc/qemu/
 echo "allow virbr0" > build/snp-release/usr/local/etc/qemu/bridge.conf
@@ -282,7 +295,7 @@ sudo virsh net-destroy default
 sudo virsh net-undefine default
 ```
 
-Create a file default.xml with this content:
+Create a file `default.xml` with this content:
 ```
 <network>
   <name>default</name>
@@ -308,7 +321,7 @@ Create a file default.xml with this content:
 </network>
 ```
 
-Start the virtual network
+Start the virtual network:
 ```bash
 sudo virsh net-define default.xml
 sudo virsh net-start default
@@ -480,7 +493,10 @@ The following folders will be mounted as read-write `tmpfs`:
 The maximum sizes are arbitrarily chosen and defined in
 [init.sh](./initramfs/init.sh#L101). Make sure that your guest VM fits these
 sizes. If you wish to change them, remember to also rebuild the
-[initramfs](#step-1-build-custom-initramfs).
+[initramfs](#step-1-build-custom-initramfs). It is also possible to define these sizes with the `Makefile`, in this way it is not more necessary to recompile the initramfs at each change:
+```bash
+VERITY_PARAMS ?= boot=verity verity_disk=/dev/sdb verity_roothash=`cat $(VERITY_ROOT_HASH)` home_size=25600M var_size=2048M etc_size=1024M tmp_size=1024M
+```
 
 When the guest is launched using our `verity` workflow, the content of those
 folders is copied to the `tmpfs` filesystems during early userspace, which will
@@ -506,7 +522,7 @@ Then, we compute the `dm-verity` tree and root hash.
 
 From the top-level directory, execute
 ```bash
-# create verity image. Pass IMAGE=<path> to change source image to use.
+# Create verity image. Pass IMAGE=<path> to change source image to use.
 # By default, the image created with `make create_new_vm` is used
 make setup_verity
 ```
@@ -590,9 +606,11 @@ info are not the expected ones, as explained
 [above](#step-3-prepare-template-for-attestation).
 
 ## Run integrity-only workflow launching a Docker workload
-The setup of this workflow is the same of [previous](#Run-integrity-only-workflow) workflow:
+
+The setup of this workflow is the same of [previous one](#Run-integrity-only-workflow). However, in this case the attestation is done automatically without the need to fetch and validate the attestation report manually. Furthermore, this workflow allows to run a specified Dockerfile inside the VM in a transparent way.
+
 ```bash
-# create verity image. Pass IMAGE=<path> to change source image to use.
+# Create verity image. Pass IMAGE=<path> to change source image to use.
 # By default, the image created with `make create_new_vm` is used
 make setup_verity
 ```
@@ -613,13 +631,14 @@ To run the Docker workload it is necessary to define the Dockerfile and a config
   ]
 }
 ```
-In the Makefile  it is possible to define where to find the Dockerfile and the json configuration file:
+
+In the `Makefile` it is possible to define where to find the Dockerfile and the json configuration file:
 ```bash
 DOCKER_PATH = $(shell realpath ./guest-vm/workload/Dockerfile)
 CONF_PATH = $(shell realpath ./guest-vm/workload/conf.json)
 ```
 
-In the Makefile it is also possible to define the size of tmpfs mounted folders inside the VM, in this way it is not more necessary to recompile the initramfs at each change:
+In the `Makefile` it is also possible to define the size of tmpfs mounted folders inside the VM, in this way it is not more necessary to recompile the initramfs at each change:
 ```bash
 VERITY_PARAMS ?= boot=verity verity_disk=/dev/sdb verity_roothash=`cat $(VERITY_ROOT_HASH)` home_size=25600M var_size=2048M etc_size=1024M tmp_size=1024M
 ```
@@ -629,7 +648,7 @@ At this point, to run the docker workload:
 make run_verity_docker_workload
 ```
 
-And to collect the results
+And to collect the results, after that the workload ends its execution:
 ```bash
 make collect_docker_workload_results
 ```
@@ -649,8 +668,8 @@ In the host there is a file `name.txt` that contain a name. In this toy example 
 }
 ```
 
-The Dockerfile just use hello.txt and name.txt as available in the container
-```
+The Dockerfile just use `hello.txt` and `name.txt` as available in the container
+```docker
 # Use a minimal base image
 FROM alpine:latest
 
@@ -693,7 +712,7 @@ Then we define this configuration file:
 }
 ```
 And this Dockerfile:
-```
+```docker
 # Use the official Ubuntu Jammy base image
 FROM ubuntu:jammy
 
@@ -711,7 +730,7 @@ Again it is possible to note that the input folder `to_compress` is handled in a
 
 ### Example: YCSB with RocksDB
 In this Docker workload we want to simulate a database computation using [YCSB](https://github.com/brianfrankcooper/YCSB/). Before run the Docker workload we have to create the database that will be the input. In order to do that you have to download and install YCSB:
-```
+```bash
 git clone https://github.com/brianfrankcooper/YCSB.git
 cd YCSB
 mvn -pl site.ycsb:rocksdb-binding -am clean package
@@ -729,11 +748,11 @@ readproportion=1
 updateproportion=0
 scanproportion=0
 insertproportion=0
-requestdistribution=zipfian"
+requestdistribution=zipfian
 ```
 
 Finally, to create a database just run:
-```
+```bash
 ./bin/ycsb load rocksdb -P workloads/readonly -p rocksdb.dir=/home/ubuntu/input/db/
 ```
 
@@ -754,7 +773,7 @@ Once we have the databse, we have to compile the configuration file:
 Note that when the output of the workload is the same as the input you have just to copy and paste the input record. Note also that in this case, where the workload is just read-only, is useless to save the output.
 
 The Dockerfile is:
-```
+```docker
 FROM ubuntu:jammy
 
 # Install dependencies
